@@ -45,6 +45,8 @@ async def adownload_file(
     path: str,
     link: models.SeafileShareLink,
     timeout: int = constants.DEFAULT_TIMEOUT_S,
+    retry: int = 3,
+    ignore_error: bool = False,
 ) -> None:
     """Download a file asynchronously."""
     path = path.lstrip(r"\/")
@@ -56,36 +58,54 @@ async def adownload_file(
     ) as client:
         url = f"https://{link.domain}d/{link.link}/files/?p=/{path}&dl=1"
         logger.info(f'GET "{url}"')
-        response = await client.get(url, timeout=timeout)
-        while response.status_code == 302:
-            response = await client.get(
-                response.headers["location"],
-                headers={"Accept": response.headers["content-type"]},
-                timeout=timeout,
-            )
-        total = int(response.headers.get("Content-Length", 0)) or None
-        try:
-            with open(dest_file, "w+b") as w_fp:
-                with tqdm.tqdm(
-                    total=total,
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    unit="B",
-                    leave=False,
-                ) as progress:
-                    num_bytes_downloaded = response.num_bytes_downloaded
-                    for chunk in response.iter_bytes():
-                        w_fp.write(chunk)
-                        progress.update(
-                            response.num_bytes_downloaded - num_bytes_downloaded
-                        )
+        try_count = 0
+        while try_count <= retry:
+            try_count += 1
+            try:
+                response = await client.get(url, timeout=timeout)
+                while response.status_code == 302:
+                    response = await client.get(
+                        response.headers["location"],
+                        headers={"Accept": response.headers["content-type"]},
+                        timeout=timeout,
+                    )
+                total = int(response.headers.get("Content-Length", 0)) or None
+            except Exception as e:
+                if try_count >= retry:
+                    if ignore_error:
+                        return
+                    raise e
+                logger.exception(e)
+
+        try_count = 0
+        while try_count <= retry:
+            try_count += 1
+            try:
+                with open(dest_file, "w+b") as w_fp:
+                    with tqdm.tqdm(
+                        total=total,
+                        unit_scale=True,
+                        unit_divisor=1024,
+                        unit="B",
+                        leave=False,
+                    ) as progress:
                         num_bytes_downloaded = response.num_bytes_downloaded
-        except Exception as e:
-            os.remove(dest_file)
-            raise e
+                        for chunk in response.iter_bytes():
+                            w_fp.write(chunk)
+                            progress.update(
+                                response.num_bytes_downloaded - num_bytes_downloaded
+                            )
+                            num_bytes_downloaded = response.num_bytes_downloaded
+            except Exception as e:
+                os.remove(dest_file)
+                if try_count >= retry:
+                    if ignore_error:
+                        return
+                    raise e
+                logger.exception(e)
 
 
-async def adownload_all(dest: str, url: str, timeout: int):
+async def adownload_all(dest: str, url: str, timeout: int, retry: int):
     """Await the download for all files."""
     link = urls.extract_link(url)
     config = models.DownloadConfig(src=link, dest=dest)
@@ -108,7 +128,14 @@ async def adownload_all(dest: str, url: str, timeout: int):
     if config.paths:
         for task in tqdm.asyncio.tqdm.as_completed(
             [
-                adownload_file(dest, file, link=config.src, timeout=timeout)
+                adownload_file(
+                    dest,
+                    file,
+                    link=config.src,
+                    timeout=timeout,
+                    retry=retry,
+                    ignore_error=True,
+                )
                 for file in (file.lstrip(os.path.sep) for file in config.paths)
                 if not os.path.exists(os.path.join(dest, file))
             ]
@@ -116,12 +143,18 @@ async def adownload_all(dest: str, url: str, timeout: int):
             await task
 
 
-def download(dest: str, url: str, timeout: int = constants.DEFAULT_TIMEOUT_S):
+def download(
+    dest: str,
+    url: str,
+    timeout: int = constants.DEFAULT_TIMEOUT_S,
+    retry: int = constants.DEFAULT_RETRY,
+):
     """Run the async downloader.
 
     Args:
         dest (str): The location to download the files to.
         url (str): The URL to download from.
-        timeout (int, optional): The timeout that each download request can max out at.F
+        timeout (int, optional): The timeout that each download request can max out at.
+        retry (int, optional): The number of times to try downloading a file.
     """
-    asyncio.run(adownload_all(dest, url, timeout))
+    asyncio.run(adownload_all(dest, url, timeout, retry=retry))
