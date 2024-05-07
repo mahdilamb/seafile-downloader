@@ -1,16 +1,13 @@
 import asyncio
-import json
 import os
 import re
 from collections.abc import Generator
-from typing import NamedTuple
 
 import httpx
 import tqdm
 import tqdm.asyncio
 
 from seafile_downloader import constants, models
-
 
 URL_PATTERN = re.compile(r"https?:\/\/(.*?\/.*?seafile.*?\/)d\/([A-Za-z0-9]{2,})")
 
