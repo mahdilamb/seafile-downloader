@@ -36,7 +36,7 @@ def iter_files(
 
 
 async def download_file(
-    dest: str, path: str, link: models.SeafileShareLink, timeout: int = 600
+    dest: str, path: str, link: models.SeafileShareLink, timeout: int
 ) -> None:
     dest_file = os.path.join(dest, path)
     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
@@ -76,7 +76,7 @@ async def download_file(
                 raise e
 
 
-async def download_all(dest: str, url: str):
+async def download_all(dest: str, url: str, timeout: int):
     """Await the download for all files."""
     link = models.SeafileShareLink(*next(URL_PATTERN.finditer(url)).groups())
     config = models.DownloadConfig(src=link, dest=dest)
@@ -95,7 +95,7 @@ async def download_all(dest: str, url: str):
     if config.paths:
         for task in tqdm.asyncio.tqdm.as_completed(
             [
-                download_file(dest, file, link=config.src)
+                download_file(dest, file, link=config.src, timeout=timeout)
                 for file in (file.lstrip(os.path.sep) for file in config.paths)
                 if not os.path.exists(os.path.join(dest, file))
             ]
@@ -103,10 +103,10 @@ async def download_all(dest: str, url: str):
             await task
 
 
-def download(dest: str, url: str):
+def download(dest: str, url: str, timeout: int = constants.DEFAULT_TIMEOUT_S):
     """Run the async downloader.
 
     Args:
         url (str): The URL to download from.
     """
-    asyncio.run(download_all(dest, url))
+    asyncio.run(download_all(dest, url, timeout))
