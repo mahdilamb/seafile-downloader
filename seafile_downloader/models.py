@@ -1,5 +1,6 @@
 """Module containing models and APIs used throughout the package."""
 
+import abc
 import datetime
 from collections.abc import Sequence
 from typing import NamedTuple
@@ -7,7 +8,7 @@ from typing import NamedTuple
 import pydantic
 
 
-class Dirent(pydantic.BaseModel):
+class Dirent(abc.ABC,pydantic.BaseModel):
     """A directory entry."""
 
     size: int
@@ -50,3 +51,4 @@ class DownloadConfig(pydantic.BaseModel):
     src: SeafileShareLink
     dest: str
     paths: Sequence[str] | None = None
+

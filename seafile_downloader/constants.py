@@ -1,4 +1,5 @@
 """Constants used throughout the package."""
 
 SEAFILE_API_VERSION = "v2.1"
-DEFAULT_TIMEOUT_S = 600
+DEFAULT_TIMEOUT_S: int = 600
+DEFAULT_RETRY: int = 3
