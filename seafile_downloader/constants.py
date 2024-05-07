@@ -1,0 +1,1 @@
+SEAFILE_API_VERSION = "v2.1"

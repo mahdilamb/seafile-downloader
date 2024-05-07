@@ -1,7 +1,7 @@
 .PHONY: help requirements install install-all qc test ruff mypy prune-branches
 default: help
 
-PACKAGE_DIR=temporary_python_project
+PACKAGE_DIR=seafile_downloader
 SRC_FILES=${PACKAGE_DIR} tests
 
 REQUIREMENTS_SUFFIX=$(shell [ -z ${extras} ] || echo '-${extras}')
@@ -10,7 +10,7 @@ requirements: # Compile the pinned requirements if they've changed.
 	@[ -f "${REQUIREMENTS_MD5_FILE}" ] && md5sum --status -c ${REQUIREMENTS_MD5_FILE} ||\
 	( md5sum requirements.in $(shell [ -z ${extras} ] || echo pyproject.toml) > ${REQUIREMENTS_MD5_FILE} && (python3 -c 'import piptools' || pip install pip-tools ) && pip-compile $(shell echo '${REQUIREMENTS_MD5_FILE}' | grep -oP '^([^\.]*?\.)[^\.]*' ) $(shell [ -z ${extras} ] || echo '--extra ${extras}' ) -o requirements${REQUIREMENTS_SUFFIX}.txt )
 
-requirements: extras=all
+requirements: extras=
 
 install: # Install minimum required packages.
 	@make requirements && pip install -e .${extras}
