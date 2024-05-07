@@ -1,8 +1,9 @@
 """Main module containing the downloader."""
 
 import asyncio
+import logging
 import os
-from collections.abc import Generator
+from collections.abc import Sequence
 
 import httpx
 import tqdm
@@ -10,72 +11,78 @@ import tqdm.asyncio
 
 from seafile_downloader import constants, models, urls
 
+logger = logging.getLogger()
 
-def list_files(
-    link: models.SeafileShareLink, path: str = "/", client: httpx.Client | None = None
+
+async def alist_files(
+    link: models.SeafileShareLink,
+    path: str = "/",
 ):
     """List the files from seafile share link."""
-    if client is None:
-        client = httpx.Client()
     url = f"https://{link.domain}api/{constants.SEAFILE_API_VERSION}/share-links/{link.link}/dirents/?&path={path}"
-    with client:
-        response = client.get(url, headers={"Accept": "application/json"})
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers={"Accept": "application/json"})
         if response.status_code != 200:
             raise Exception(response.text)
         return models.DirentList.model_validate_json(response.text).dirent_list
 
 
-def iter_files(
+async def alist_all_files(
     link: models.SeafileShareLink, path: str = "/"
-) -> Generator[str, None, None]:
-    """Iterate the file list."""
-    for dirent in list_files(link, path=path):
+) -> Sequence[str]:
+    """List all the files recursively."""
+    files: Sequence[str] = []
+    for dirent in await alist_files(link, path=path):
         if isinstance(dirent, models.Folder):
-            yield from iter_files(link, path=dirent.folder_path)
+            files.extend(await alist_all_files(link, path=dirent.folder_path))
         else:
-            yield dirent.file_path
+            files.append(dirent.file_path)
+    return tuple(files)
 
 
 async def adownload_file(
-    dest: str, path: str, link: models.SeafileShareLink, timeout: int
+    dest: str,
+    path: str,
+    link: models.SeafileShareLink,
+    timeout: int = constants.DEFAULT_TIMEOUT_S,
 ) -> None:
     """Download a file asynchronously."""
+    path = path.lstrip(r"\/")
     dest_file = os.path.join(dest, path)
     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
 
     async with httpx.AsyncClient(
-        headers={"Accept": "*/*", "Connection": "keep-alive"}, timeout=timeout
+        headers={"Accept": "*/*", "Connection": "keep-alive"}
     ) as client:
-        response = await client.get(
-            f"https://{link.domain}d/{link.link}/files/?&p=/{path}&dl=1",
-        )
+        url = f"https://{link.domain}d/{link.link}/files/?p=/{path}&dl=1"
+        logger.info(f'GET "{url}"')
+        response = await client.get(url, timeout=timeout)
         while response.status_code == 302:
             response = await client.get(
                 response.headers["location"],
                 headers={"Accept": response.headers["content-type"]},
                 timeout=timeout,
             )
-        total = int(response.headers.get("Content-Length", 0))
-        if total:
-            try:
-                with open(dest_file, "w+b") as w_fp:
-                    with tqdm.tqdm(
-                        total=total,
-                        unit_scale=True,
-                        unit_divisor=1024,
-                        unit="B",
-                        leave=False,
-                    ) as progress:
+        total = int(response.headers.get("Content-Length", 0)) or None
+        try:
+            with open(dest_file, "w+b") as w_fp:
+                with tqdm.tqdm(
+                    total=total,
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    unit="B",
+                    leave=False,
+                ) as progress:
+                    num_bytes_downloaded = response.num_bytes_downloaded
+                    for chunk in response.iter_bytes():
+                        w_fp.write(chunk)
+                        progress.update(
+                            response.num_bytes_downloaded - num_bytes_downloaded
+                        )
                         num_bytes_downloaded = response.num_bytes_downloaded
-                        for chunk in response.iter_bytes():
-                            w_fp.write(chunk)
-                            progress.update(
-                                response.num_bytes_downloaded - num_bytes_downloaded
-                            )
-                            num_bytes_downloaded = response.num_bytes_downloaded
-            except Exception as e:
-                os.unlink(dest_file)
-                raise e
+        except Exception as e:
+            os.remove(dest_file)
+            raise e
 
 
 async def adownload_all(dest: str, url: str, timeout: int):
@@ -84,16 +91,20 @@ async def adownload_all(dest: str, url: str, timeout: int):
     config = models.DownloadConfig(src=link, dest=dest)
     config_path = os.path.join(dest, f".seafile-downloader-config-{link.link}.json")
     if not os.path.exists(config_path):
+        logger.info(f"Storing config to {config_path}.")
         os.makedirs(dest, exist_ok=True)
         with open(config_path, "w") as fp:
             fp.write(config.model_dump_json())
     else:
+        logger.info(f"Loading config from {config_path}.")
         with open(config_path) as fp:
             config = models.DownloadConfig.model_validate_json(fp.read())
     if config.paths is None:
-        config.paths = tuple(iter_files(link=config.src))
+        logger.info("Downloading file list...")
+        config.paths = await alist_all_files(link=config.src)
         with open(config_path, "w") as fp:
             fp.write(config.model_dump_json())
+        logger.info("...done")
     if config.paths:
         for task in tqdm.asyncio.tqdm.as_completed(
             [
