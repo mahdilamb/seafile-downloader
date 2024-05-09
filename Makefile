@@ -16,7 +16,7 @@ install: # Install minimum required packages.
 	@make requirements && pip install -e .${extras}
 
 install-all: # Install all packages
-	@make requirements extras=all && pip install -e .[all]
+	@make requirements; make requirements extras=all && pip install -e .[all]
 
 ruff: # Run ruff
 	@ruff check ${SRC_FILES} --fix

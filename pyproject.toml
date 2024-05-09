@@ -12,7 +12,7 @@ version = {attr = "seafile_downloader.__version__"}
 [project.optional-dependencies]
 all = ["seafile-downloader[dev]"]
 dev = ["pip-tools", "ruff", "seafile-downloader[test]"]
-test = ["pytest", "pytest-cov", 'pytest-asyncio']
+test = ["pytest", "pytest-cov"]
 
 [tool.setuptools.package-dir]
 "seafile_downloader" = "seafile_downloader"

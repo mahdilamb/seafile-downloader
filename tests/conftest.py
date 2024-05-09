@@ -7,15 +7,15 @@ import pytest
 
 
 @pytest.fixture(scope="session")
-def mock_async_client_factory():
-    """Factory to create a mock async client for httpx.
+def mock_client_factory():
+    """Factory to create a mock client for httpx.
 
-    The AsyncClient will always produce the response invariant of http method.
+    The AClient will always produce the response invariant of http method.
     """
 
     @contextlib.contextmanager
     def create(response):
-        async def areturn(*_, **__):
+        def areturn(*_, **__):
             return response
 
         def call(*_, **__):
@@ -23,31 +23,20 @@ def mock_async_client_factory():
 
         def consume(*_, **__): ...
 
-        async def aconsume(*_, **__): ...
-        def aself(self, *_, **__):
+        def self(self, *_, **__):
             return self
 
-        def empty_generator(self, *_, **__):
-            async def get_client():
-                return self
-
-            return get_client().__await__()
-
-        MockAsyncClient = type(
+        MockClient = type(
             "MockAsyncClient",
-            (contextlib.AbstractAsyncContextManager,),
+            (contextlib.AbstractContextManager,),
             {
                 "__getattribute__": call,
                 "__init__": consume,
-                "__await__": empty_generator,
-                "__aenter__": aself,
-                "__aexit__": aconsume,
+                "__enter__": self,
+                "__exit__": consume,
             },
         )
-        with mock.patch(
-            "httpx.AsyncClient",
-            MockAsyncClient,
-        ):
+        with mock.patch("httpx.Client", MockClient):
             yield
 
     return create

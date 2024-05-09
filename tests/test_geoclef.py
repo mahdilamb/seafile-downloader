@@ -20,44 +20,38 @@ def geoclef_link(geoclef_url) -> models.SeafileShareLink:
     return urls.extract_link(geoclef_url)
 
 
-@pytest.mark.asyncio
-async def test_file_list(geoclef_link):
+def test_file_list(geoclef_link):
     """Test that files can be listed."""
     assert len(
-        await downloader.alist_files(geoclef_link, path="/")
+        downloader.list_files(geoclef_link, path="/")
     ), "Expected to be able to list files."
 
 
-@pytest.mark.asyncio
-async def test_recursive_file_list(
+def test_recursive_file_list(
     geoclef_link, path: str = "/EnvironmentalRasters/HumanFootprint/"
 ):
     """Test that the recursive method of listing files works."""
     assert any(
         os.path.sep in os.path.relpath(file_path, path)
-        for file_path in await downloader.alist_all_files(geoclef_link, path=path)
+        for file_path in downloader.list_all_files(geoclef_link, path=path)
     )
 
 
-@pytest.mark.asyncio
-async def test_file_download(
+def test_file_download(
     geoclef_link, path: str = "/EnvironmentalRasters/HumanFootprint/HF_README.txt"
 ):
     """Test downloading a file."""
     with tempfile.TemporaryDirectory() as tmp_dir:
-        await downloader.adownload_file(
-            tmp_dir, path=path, link=geoclef_link, timeout=5
-        )
+        downloader.download_file(tmp_dir, path=path, link=geoclef_link, timeout=5)
         assert os.path.exists(
             os.path.join(tmp_dir, path.lstrip(r"\/"))
         ), f"Expected to be able to download {path}."
 
 
 @pytest.mark.parametrize(("retry",), [(0,), (3,)])
-@pytest.mark.asyncio
-async def test_failed_file_download_empty(
+def test_failed_file_download_empty(
     geoclef_link,
-    mock_async_client_factory,
+    mock_client_factory,
     retry: int,
     path: str = "/EnvironmentalRasters/HumanFootprint/HF_README.txt",
 ):
@@ -79,10 +73,10 @@ async def test_failed_file_download_empty(
 
     with (
         tempfile.TemporaryDirectory() as tmp_dir,
-        mock_async_client_factory(ErrorResponse()),
+        mock_client_factory(ErrorResponse()),
     ):
         with pytest.raises(Exception) as _:
-            await downloader.adownload_file(
+            downloader.download_file(
                 tmp_dir, path=path, link=geoclef_link, timeout=5, retry=retry
             )
         assert not os.path.exists(
