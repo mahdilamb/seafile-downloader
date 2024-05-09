@@ -115,7 +115,7 @@ def download(
     url: str,
     timeout: int = constants.DEFAULT_TIMEOUT_S,
     retry: int = constants.DEFAULT_RETRY,
-    max_concurrent: int = constants.DEFAULT_MAX_CONCURRENT,
+    max_concurrent: int | None = constants.DEFAULT_MAX_CONCURRENT,
 ):
     """Run the downloader.
 
@@ -124,6 +124,7 @@ def download(
         url (str): The URL to download from.
         timeout (int, optional): The timeout that each download request can max out at.
         retry (int, optional): The number of times to try downloading a file.
+        max_concurrent (int, optional): The maximum number of concurrent downloads.
     """
     link = urls.extract_link(url)
 
