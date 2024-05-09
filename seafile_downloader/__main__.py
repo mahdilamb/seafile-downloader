@@ -13,6 +13,9 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", default=".")
     parser.add_argument("--timeout", type=int, default=constants.DEFAULT_TIMEOUT_S)
     parser.add_argument("--retry", type=int, default=constants.DEFAULT_RETRY)
+    parser.add_argument(
+        "--max-concurrent", type=int, default=constants.DEFAULT_MAX_CONCURRENT
+    )
 
     return parser
 
@@ -25,6 +28,7 @@ def main(args: Sequence[str] | None = None) -> None:
         dest=values["out"],
         timeout=values["timeout"],
         retry=values["retry"],
+        max_concurrent=values["max_concurrent"],
     )
 
 
