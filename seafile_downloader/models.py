@@ -4,7 +4,7 @@ import datetime
 from typing import NamedTuple, TypedDict
 
 
-class Dirent(TypedDict):
+class Dirent(TypedDict, total=True):
     """A directory entry."""
 
     size: int
@@ -12,14 +12,14 @@ class Dirent(TypedDict):
     is_dir: bool
 
 
-class File(Dirent):
+class File(Dirent, total=True):
     """A file."""
 
     file_path: str
     file_name: str
 
 
-class Folder(Dirent):
+class Folder(Dirent, total=True):
     """A folder."""
 
     folder_path: str
