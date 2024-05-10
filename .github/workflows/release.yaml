@@ -50,13 +50,13 @@ jobs:
                 commit_sha: process.env.GITHUB_SHA,
             })).data.filter((pr) => pr.state === "closed" || pr.closed_at)
             .sort((a, b) => new Date(a.closed_at) - new Date(b.closed_at))[0];
-            const tagName = 'v${{steps.version.outputs.version}}'
+            const version = '${{steps.version.outputs.version}}'
             github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: tagName,
+              tag_name: `v${version}`,
               draft: false,
               make_latest: 'true',
-              name: associatedPR.title,
+              name: `${version}: ${associatedPR.title}`,
               body: associatedPR.body,
             })

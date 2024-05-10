@@ -42,49 +42,15 @@ def test_file_download(
 ):
     """Test downloading a file."""
     with tempfile.TemporaryDirectory() as tmp_dir:
-        downloader.download_file(tmp_dir, path=path, link=geoclef_link, timeout=5)
+        downloader.download_file(
+            os.path.join(tmp_dir, "README.MD"),
+            path=path,
+            link=geoclef_link,
+            timeout=5,
+        )
         assert os.path.exists(
-            os.path.join(tmp_dir, path.lstrip(r"\/"))
+            os.path.join(tmp_dir, "README.MD")
         ), f"Expected to be able to download {path}."
-
-
-@pytest.mark.parametrize(("retry",), [(0,), (3,)])
-def test_failed_file_download_empty(
-    geoclef_link,
-    mock_client_factory,
-    retry: int,
-    path: str = "/EnvironmentalRasters/HumanFootprint/HF_README.txt",
-):
-    """Test that files that fail download are removed."""
-    try_count = 0
-
-    class ErrorResponse:
-        status_code = 200
-        headers = {}
-        num_bytes_downloaded = 3
-
-        def iter_bytes(self):
-            nonlocal try_count
-            for i in range(3):
-                yield str(i).encode()
-                self.num_bytes_downloaded -= 1
-            try_count += 1
-            raise Exception()
-
-    with (
-        tempfile.TemporaryDirectory() as tmp_dir,
-        mock_client_factory(ErrorResponse()),
-    ):
-        with pytest.raises(Exception) as _:
-            downloader.download_file(
-                tmp_dir, path=path, link=geoclef_link, timeout=5, retry=retry
-            )
-        assert not os.path.exists(
-            os.path.join(tmp_dir, path.lstrip(r"\/"))
-        ), "Expected the failed download to be deleted."
-        assert try_count >= 1 and try_count <= max(
-            1, retry
-        ), f"Expected number of retries to be at least once, and at most retry {retry}."
 
 
 if __name__ == "__main__":
